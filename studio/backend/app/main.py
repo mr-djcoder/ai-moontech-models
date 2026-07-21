@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 from datetime import date
 from pathlib import Path
@@ -112,11 +113,21 @@ def get_model(slug: str):
         raise HTTPException(status_code=404, detail="model not found")
 
 
+_SAFE_SEGMENT = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
 @app.get("/models/{slug}/reference/{filename}")
 def model_reference_image(slug: str, filename: str):
-    base = (MODELS_ROOT / slug / "reference").resolve()
+    if not _SAFE_SEGMENT.match(slug) or not _SAFE_SEGMENT.match(filename):
+        raise HTTPException(status_code=404, detail="reference image not found")
+    root = MODELS_ROOT.resolve()
+    base = (root / slug / "reference").resolve()
     target = (base / filename).resolve()
-    if not str(target).startswith(str(base) + os.sep) or not target.is_file():
+    if (
+        not str(base).startswith(str(root) + os.sep)
+        or not str(target).startswith(str(base) + os.sep)
+        or not target.is_file()
+    ):
         raise HTTPException(status_code=404, detail="reference image not found")
     return FileResponse(target)
 

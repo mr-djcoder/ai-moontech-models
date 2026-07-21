@@ -332,3 +332,19 @@ def test_missing_reference_image_404():
 def test_reference_image_rejects_traversal():
     resp = client.get("/models/jess/reference/..%2f..%2fcard.json")
     assert resp.status_code == 404
+
+
+def test_reference_image_dotdot_filename_exercises_guard():
+    # A literal ".." segment is normalized away by httpx's URL handling before
+    # the request is even sent (it never reaches the ASGI app), so it can't be
+    # used to prove the guard runs. Percent-encoding the dots (%2e%2e) survives
+    # client-side normalization and is decoded back to ".." by the time it
+    # reaches the route, so it actually exercises the handler's guard.
+    resp = client.get("/models/jess/reference/%2e%2e")
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "reference image not found"
+
+
+def test_reference_image_rejects_traversal_slug():
+    resp = client.get("/models/..%2freference/front.png")
+    assert resp.status_code == 404
