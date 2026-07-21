@@ -9,6 +9,8 @@ from app.jobs import JobStore
 from app.schema import (
     Candidate,
     Card,
+    DedupRequest,
+    DedupResponse,
     GenerateRequest,
     GenerateResponse,
     GenerateSheetRequest,
@@ -145,3 +147,11 @@ def generate_sheet(req: GenerateSheetRequest):
     job_id = job_store.create()
     _run_generate_job(job_id, gen_req)
     return GenerateResponse(job_id=job_id)
+
+
+@app.post("/dedup-check", response_model=DedupResponse)
+def dedup_check(req: DedupRequest):
+    # Phase 1 stub — real mechanism deferred to task #16 (attribute vs
+    # embedding similarity, reconciled with model judgment). The frontend
+    # banner is real; this always returns no matches for now.
+    return DedupResponse(matches=[])

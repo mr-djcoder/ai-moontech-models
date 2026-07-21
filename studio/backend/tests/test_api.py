@@ -262,3 +262,9 @@ def test_generate_restores_vram_on_unexpected_exception(monkeypatch):
     body = status_resp.json()
     assert body["status"] == "error"
     assert restore_calls == [True]
+
+
+def test_dedup_check_stub_returns_no_matches():
+    resp = client.post("/dedup-check", json={"attributes": {"age_band": "late 20s"}})
+    assert resp.status_code == 200
+    assert resp.json() == {"matches": []}
