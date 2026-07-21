@@ -1,7 +1,17 @@
+import pytest
 from fastapi.testclient import TestClient
 from app.main import app
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def _no_ollama_enrich(monkeypatch):
+    # Enrichment calls the local LLM; keep the API tests hermetic by making it a
+    # passthrough so /generate paths never touch Ollama. enrich itself is unit-tested
+    # separately in test_enrich.py.
+    from app import main
+    monkeypatch.setattr(main.enrich, "enrich_identity", lambda s, **k: s)
 
 
 def test_health():

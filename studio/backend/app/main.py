@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-from app import comfy, git_ops, models_store, vram, workflows
+from app import comfy, enrich, git_ops, models_store, vram, workflows
 from app.config import MODELS_ROOT
 from app.jobs import JobStore
 from app.schema import (
@@ -50,13 +50,19 @@ def _candidate_source_dir(slug: str) -> Path:
 
 
 def _run_generate_job(job_id: str, req: GenerateRequest) -> None:
+    # Enrich the sparse brief into a detailed photoreal prompt BEFORE freeing VRAM —
+    # enrichment needs the local LLM running, and free_vram() stops it to make room
+    # for ComfyUI. Describe mode only; reference mode is driven by the image.
+    identity = req.identity_string
+    if req.mode == "describe" and identity:
+        identity = enrich.enrich_identity(identity)
     vram.free_vram()
     try:
         candidates: list[Candidate] = []
         for angle in ANGLE_PHRASES:
             if req.mode == "describe":
                 graph = workflows.build_describe_graph(
-                    identity_string=req.identity_string, angle=angle,
+                    identity_string=identity, angle=angle,
                     seed=req.seed, count=req.count,
                 )
             else:
