@@ -309,3 +309,9 @@ def test_dedup_check_stub_returns_no_matches():
     resp = client.post("/dedup-check", json={"attributes": {"age_band": "late 20s"}})
     assert resp.status_code == 200
     assert resp.json() == {"matches": []}
+
+
+def test_cors_allows_dev_origin():
+    resp = client.get("/health", headers={"Origin": "http://localhost:5173"})
+    assert resp.status_code == 200
+    assert resp.headers.get("access-control-allow-origin") == "http://localhost:5173"

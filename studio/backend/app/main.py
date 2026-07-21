@@ -3,6 +3,7 @@ from datetime import date
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from app import comfy, git_ops, models_store, vram, workflows
 from app.config import MODELS_ROOT
@@ -22,6 +23,12 @@ from app.schema import (
 from app.safety import ANGLE_PHRASES, check_save
 
 app = FastAPI(title="Virtual Model Studio backend")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 job_store = JobStore()
 
 
