@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { generateDescribe, pollUntilDone, saveModel } from "../api.js";
+import { generateDescribe, pollUntilDone, saveModel, dedupCheck } from "../api.js";
 import CandidateGrid from "../components/CandidateGrid.jsx";
 import SavePanel from "../components/SavePanel.jsx";
 
@@ -20,6 +20,13 @@ function assembleIdentity(f) {
 function slugify(name) {
   return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
+function buildAttributes(f) {
+  return {
+    race_ethnicity: f.race_ethnicity, age_band: f.age_band, height: f.height,
+    build: f.build, hair: f.hair, distinctive_face: f.distinctive_face,
+    distinctive_body: f.distinctive_body, personality: f.personality,
+  };
+}
 const randSeed = () => Math.floor(Math.random() * 90000) + 10000;
 
 export default function Console() {
@@ -28,6 +35,7 @@ export default function Console() {
   const [seed, setSeed] = useState(randSeed());
   const [candidates, setCandidates] = useState([]);
   const [picked, setPicked] = useState({});
+  const [dupes, setDupes] = useState([]);
   const [busy, setBusy] = useState(false);
   const [genError, setGenError] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -39,12 +47,14 @@ export default function Console() {
   const allPicked = ANGLES.every((a) => picked[a]);
 
   async function generate() {
-    setBusy(true); setGenError(null); setCandidates([]); setPicked({});
+    setBusy(true); setGenError(null); setCandidates([]); setPicked({}); setDupes([]);
     try {
       const { job_id } = await generateDescribe({ identity_string: identity, seed, count: 2 });
       const job = await pollUntilDone(job_id);
       if (job.status === "error") { setGenError(job.error || "generation failed"); return; }
       setCandidates(job.candidates);
+      // Advisory near-duplicate check; returns [] until the real mechanism (#16) lands.
+      try { const d = await dedupCheck(buildAttributes(form)); setDupes(d.matches || []); } catch { /* non-fatal */ }
     } catch (e) { setGenError(e.message); }
     finally { setBusy(false); }
   }
@@ -54,11 +64,7 @@ export default function Console() {
     try {
       const res = await saveModel({
         slug, name: form.name, gender: form.gender, identity_string: identity, seed,
-        attributes: {
-          race_ethnicity: form.race_ethnicity, age_band: form.age_band, height: form.height,
-          build: form.build, hair: form.hair, distinctive_face: form.distinctive_face,
-          distinctive_body: form.distinctive_body, personality: form.personality,
-        },
+        attributes: buildAttributes(form),
         provenance: "synthetic",
         picked,
       });
@@ -118,7 +124,7 @@ export default function Console() {
           </div>
         </div>
 
-        <SavePanel form={form} slug={slug} seed={seed} allPicked={allPicked} saving={saving} saveError={saveError} onSave={save} />
+        <SavePanel form={form} slug={slug} seed={seed} allPicked={allPicked} dupes={dupes} saving={saving} saveError={saveError} onSave={save} />
       </div>
 
       <footer>

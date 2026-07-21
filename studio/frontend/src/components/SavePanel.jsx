@@ -1,8 +1,14 @@
-export default function SavePanel({ form, slug, seed, allPicked, saving, saveError, onSave }) {
+export default function SavePanel({ form, slug, seed, allPicked, dupes, saving, saveError, onSave }) {
+  const canSave = allPicked && !!slug && !saving;
   return (
     <div className="pane">
       <h4><span className="n">03</span> Save</h4>
       <div className="body">
+        {dupes && dupes.length > 0 && (
+          <div className="alert warn">
+            <b>{Math.round(dupes[0].score * 100)}% similar to “{dupes[0].slug}.”</b> {dupes[0].reason} Reuse it instead of creating a near-duplicate?
+          </div>
+        )}
         <div className="field">
           <label>Provenance</label>
           <div className="provenance">
@@ -17,10 +23,11 @@ export default function SavePanel({ form, slug, seed, allPicked, saving, saveErr
           <div className="kv"><span>status</span><span>card</span></div>
         </div>
         {saveError && <div className="alert warn"><b>Save failed.</b> {saveError}</div>}
-        <button className="btn ok" style={{ width: "100%", justifyContent: "center" }} disabled={!allPicked || saving} onClick={onSave}>
+        <button className="btn ok" style={{ width: "100%", justifyContent: "center" }} disabled={!canSave} onClick={onSave}>
           {saving ? "Saving…" : "Save to collection"}
         </button>
-        {!allPicked && <div className="note"><span className="dot"></span><span>Pick one frame for each of the four angles to enable save.</span></div>}
+        {!slug && <div className="note"><span className="dot"></span><span>Enter a name to set the slug before saving.</span></div>}
+        {slug && !allPicked && <div className="note"><span className="dot"></span><span>Pick one frame for each of the four angles to enable save.</span></div>}
         <button className="btn" style={{ width: "100%", justifyContent: "center" }} disabled>Promote to LoRA · phase 2</button>
       </div>
     </div>

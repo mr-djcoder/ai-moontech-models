@@ -1,5 +1,3 @@
-import { imageUrl } from "../api.js";
-
 const ANGLES = ["front", "34", "profile", "body"];
 const ANGLE_LABEL = { front: "front", "34": "3/4", profile: "profile", body: "body" };
 
