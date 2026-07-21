@@ -33,6 +33,7 @@ export default function Console() {
   const nav = useNavigate();
   const [form, setForm] = useState(EMPTY);
   const [seed, setSeed] = useState(randSeed());
+  const [count, setCount] = useState(4);
   const [candidates, setCandidates] = useState([]);
   const [picked, setPicked] = useState({});
   const [dupes, setDupes] = useState([]);
@@ -49,7 +50,7 @@ export default function Console() {
   async function generate() {
     setBusy(true); setGenError(null); setCandidates([]); setPicked({}); setDupes([]);
     try {
-      const { job_id } = await generateDescribe({ identity_string: identity, seed, count: 2 });
+      const { job_id } = await generateDescribe({ identity_string: identity, seed, count });
       const job = await pollUntilDone(job_id);
       if (job.status === "error") { setGenError(job.error || "generation failed"); return; }
       setCandidates(job.candidates);
@@ -112,8 +113,13 @@ export default function Console() {
           <h4><span className="n">02</span> Base sheet <span style={{ marginLeft: "auto", fontFamily: "var(--mono)", textTransform: "none", letterSpacing: 0, color: "var(--muted)" }}>seed {seed}</span></h4>
           <div className="body">
             <div className="sheet-head">
-              <button className="btn primary" onClick={generate} disabled={busy || !form.age_band}>{busy ? "Generating…" : "⟳ Generate 8"}</button>
+              <button className="btn primary" onClick={generate} disabled={busy || !form.age_band}>{busy ? "Generating…" : `⟳ Generate ${count * 4}`}</button>
               <button className="btn ghost" onClick={() => setSeed(randSeed())} disabled={busy}>Re-roll seed</button>
+              <div className="seg" style={{ width: "auto", flex: "0 0 auto" }} title="candidates per angle">
+                {[2, 4, 6].map((n) => (
+                  <button key={n} className={count === n ? "on" : ""} onClick={() => setCount(n)} disabled={busy}>{n}/angle</button>
+                ))}
+              </div>
               <span className="note" style={{ marginLeft: "auto" }}><span className="dot"></span><span>Plain underwear base — dressed per build</span></span>
             </div>
             {!form.age_band && <div className="note"><span className="dot"></span><span>Age band is required before generating.</span></div>}

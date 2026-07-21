@@ -7,7 +7,8 @@ REALISM_NEGATIVE_PROMPT = (
     "CGI look, waxy skin, overly smooth, beauty-filter, artificial symmetry, "
     "wig, doll hair, mannequin hair, helmet hair, perfectly styled hair, "
     "smooth flawless skin, poreless, uncanny valley, 3d render, cartoon, "
-    "deepfake sheen, over-sharpened, oversaturated"
+    "deepfake sheen, over-sharpened, oversaturated, retouched, instagram filter, "
+    "flawless complexion, perfectly symmetrical face, video game render, unreal engine"
 )
 
 ANGLE_PHRASES = {
