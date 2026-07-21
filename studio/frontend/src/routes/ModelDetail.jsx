@@ -27,7 +27,7 @@ export default function ModelDetail() {
 
       <div className="console" style={{ gridTemplateColumns: "1fr 280px" }}>
         <div className="pane">
-          <h4><span className="n">01</span> Reference sheet</h4>
+          <h4>Reference sheet</h4>
           <div className="body">
             <div className="sheet">
               {model.reference_images.map((p) => {
@@ -45,7 +45,7 @@ export default function ModelDetail() {
         </div>
 
         <div className="pane">
-          <h4><span className="n">02</span> Identity</h4>
+          <h4>Identity</h4>
           <div className="body">
             <div className="note"><span className="dot"></span><span>{model.identity_string}</span></div>
             <div>
