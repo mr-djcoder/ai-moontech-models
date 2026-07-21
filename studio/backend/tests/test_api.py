@@ -67,6 +67,24 @@ def test_generate_describe_and_poll_job(monkeypatch):
         assert c["subfolder"] == "job1"
 
 
+def test_upload_reference_saves_and_returns_filename(monkeypatch, tmp_path):
+    from app import main
+    monkeypatch.setattr(main, "COMFYUI_INPUT_DIR", tmp_path)
+    png = b"\x89PNG\r\n\x1a\n" + b"0" * 64
+    resp = client.post("/upload", files={"file": ("ref.png", png, "image/png")})
+    assert resp.status_code == 200
+    name = resp.json()["ref_image"]
+    assert name.startswith("ref_") and name.endswith(".png")
+    assert (tmp_path / name).read_bytes() == png
+
+
+def test_upload_reference_rejects_non_image(monkeypatch, tmp_path):
+    from app import main
+    monkeypatch.setattr(main, "COMFYUI_INPUT_DIR", tmp_path)
+    resp = client.post("/upload", files={"file": ("evil.txt", b"nope", "text/plain")})
+    assert resp.status_code == 400
+
+
 def test_jobs_unknown_id_returns_404():
     resp = client.get("/jobs/does-not-exist")
     assert resp.status_code == 404

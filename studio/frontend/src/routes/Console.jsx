@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { generateDescribe, pollUntilDone, saveModel, dedupCheck } from "../api.js";
+import { generateDescribe, generateReference, uploadReference, pollUntilDone, saveModel, dedupCheck } from "../api.js";
 import CandidateGrid from "../components/CandidateGrid.jsx";
 import SavePanel from "../components/SavePanel.jsx";
 
@@ -32,6 +32,9 @@ const randSeed = () => Math.floor(Math.random() * 90000) + 10000;
 export default function Console() {
   const nav = useNavigate();
   const [form, setForm] = useState(EMPTY);
+  const [mode, setMode] = useState("describe");
+  const [refFile, setRefFile] = useState(null);
+  const [likeness, setLikeness] = useState(0.65);
   const [seed, setSeed] = useState(randSeed());
   const [count, setCount] = useState(4);
   const [candidates, setCandidates] = useState([]);
@@ -50,12 +53,21 @@ export default function Console() {
   async function generate() {
     setBusy(true); setGenError(null); setCandidates([]); setPicked({}); setDupes([]);
     try {
-      const { job_id } = await generateDescribe({ identity_string: identity, seed, count });
+      let job_id;
+      if (mode === "reference") {
+        if (!refFile) { setGenError("choose a reference image first"); return; }
+        const { ref_image } = await uploadReference(refFile);
+        ({ job_id } = await generateReference({ ref_image, likeness, seed, count }));
+      } else {
+        ({ job_id } = await generateDescribe({ identity_string: identity, seed, count }));
+      }
       const job = await pollUntilDone(job_id);
       if (job.status === "error") { setGenError(job.error || "generation failed"); return; }
       setCandidates(job.candidates);
-      // Advisory near-duplicate check; returns [] until the real mechanism (#16) lands.
-      try { const d = await dedupCheck(buildAttributes(form)); setDupes(d.matches || []); } catch { /* non-fatal */ }
+      // Advisory near-duplicate check; needs age_band, returns [] until #16 lands.
+      if (form.age_band) {
+        try { const d = await dedupCheck(buildAttributes(form)); setDupes(d.matches || []); } catch { /* non-fatal */ }
+      }
     } catch (e) { setGenError(e.message); }
     finally { setBusy(false); }
   }
@@ -88,8 +100,8 @@ export default function Console() {
           <h4><span className="n">01</span> Brief</h4>
           <div className="body">
             <div className="seg">
-              <button className="on">Describe</button>
-              <button disabled title="needs image upload — phase 2">From reference</button>
+              <button className={mode === "describe" ? "on" : ""} onClick={() => setMode("describe")}>Describe</button>
+              <button className={mode === "reference" ? "on" : ""} onClick={() => setMode("reference")}>From reference</button>
             </div>
             <div className="field"><label>Name</label><input className="inp" value={form.name} onChange={set("name")} placeholder="Nadia" /></div>
             <div className="row2">
@@ -105,7 +117,23 @@ export default function Console() {
             <div className="field"><label>Distinctive face</label><input className="inp" value={form.distinctive_face} onChange={set("distinctive_face")} /></div>
             <div className="field"><label>Distinctive body</label><input className="inp" value={form.distinctive_body} onChange={set("distinctive_body")} /></div>
             <div className="field"><label>Personality</label><input className="inp" value={form.personality} onChange={set("personality")} /></div>
-            <div className="drop">Reference-image seeding<br /><span style={{ fontSize: 11 }}>phase 2 · describe mode only for now</span></div>
+            {mode === "reference" ? (
+              <>
+                <label className="drop" style={{ cursor: "pointer" }}>
+                  {refFile ? <b>{refFile.name}</b> : <>Click to choose a <b>reference image</b></>}
+                  <br /><span style={{ fontSize: 11 }}>seeds the look · synthetic output</span>
+                  <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => setRefFile(e.target.files?.[0] || null)} />
+                </label>
+                <div className="likeness">
+                  <div className="lk-top"><span>Likeness</span><span className="val">{likeness.toFixed(2)}</span></div>
+                  <input type="range" min="0" max="1" step="0.05" value={likeness} onChange={(e) => setLikeness(parseFloat(e.target.value))} style={{ width: "100%", accentColor: "var(--violet)" }} />
+                  <div className="scale"><span>0.0 loose</span><span>1.0 exact</span></div>
+                </div>
+                <div className="note"><span className="dot"></span><span>Higher likeness hugs the reference; lower keeps it a fresh, distinct face.</span></div>
+              </>
+            ) : (
+              <div className="note"><span className="dot"></span><span>Describe mode — the brief is enriched into a photoreal prompt at generation.</span></div>
+            )}
           </div>
         </div>
 
@@ -113,7 +141,7 @@ export default function Console() {
           <h4><span className="n">02</span> Base sheet <span style={{ marginLeft: "auto", fontFamily: "var(--mono)", textTransform: "none", letterSpacing: 0, color: "var(--muted)" }}>seed {seed}</span></h4>
           <div className="body">
             <div className="sheet-head">
-              <button className="btn primary" onClick={generate} disabled={busy || !form.age_band}>{busy ? "Generating…" : `⟳ Generate ${count * 4}`}</button>
+              <button className="btn primary" onClick={generate} disabled={busy || (mode === "describe" && !form.age_band) || (mode === "reference" && !refFile)}>{busy ? "Generating…" : `⟳ Generate ${count * 4}`}</button>
               <button className="btn ghost" onClick={() => setSeed(randSeed())} disabled={busy}>Re-roll seed</button>
               <div className="seg" style={{ width: "auto", flex: "0 0 auto" }} title="candidates per angle">
                 {[2, 4, 6].map((n) => (
@@ -122,7 +150,8 @@ export default function Console() {
               </div>
               <span className="note" style={{ marginLeft: "auto" }}><span className="dot"></span><span>Plain underwear base — dressed per build</span></span>
             </div>
-            {!form.age_band && <div className="note"><span className="dot"></span><span>Age band is required before generating.</span></div>}
+            {mode === "describe" && !form.age_band && <div className="note"><span className="dot"></span><span>Age band is required before generating.</span></div>}
+            {mode === "reference" && !refFile && <div className="note"><span className="dot"></span><span>Choose a reference image before generating.</span></div>}
             {genError && <div className="alert warn"><b>Generation failed.</b> {genError}</div>}
             {candidates.length > 0
               ? <CandidateGrid candidates={candidates} picked={picked} onPick={(a, f) => setPicked({ ...picked, [a]: f })} />

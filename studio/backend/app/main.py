@@ -3,13 +3,14 @@ import re
 import shutil
 from datetime import date
 from pathlib import Path
+from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from app import comfy, enrich, git_ops, models_store, vram, workflows
-from app.config import MODELS_ROOT
+from app.config import COMFYUI_INPUT_DIR, MODELS_ROOT
 from app.jobs import JobStore
 from app.schema import (
     Candidate,
@@ -38,6 +39,24 @@ job_store = JobStore()
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+_ALLOWED_IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp"}
+
+
+@app.post("/upload")
+def upload_reference(file: UploadFile = File(...)):
+    # Reference-mode seeding: the image must land in ComfyUI's input/ dir so its
+    # LoadImage node can read it by filename (which is what build_reference_graph
+    # sets as ref_image). Random filename avoids collisions.
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in _ALLOWED_IMAGE_EXT:
+        raise HTTPException(status_code=400, detail="unsupported image type")
+    name = f"ref_{uuid4().hex}{ext}"
+    COMFYUI_INPUT_DIR.mkdir(parents=True, exist_ok=True)
+    with (COMFYUI_INPUT_DIR / name).open("wb") as out:
+        shutil.copyfileobj(file.file, out)
+    return {"ref_image": name}
 
 
 def _candidate_source_dir(slug: str) -> Path:

@@ -22,6 +22,17 @@ export const getModel = (slug) => jget(`/models/${slug}`);
 export const generateDescribe = ({ identity_string, seed, count }) =>
   jpost("/generate", { mode: "describe", identity_string, seed, count });
 
+export const generateReference = ({ ref_image, likeness, seed, count }) =>
+  jpost("/generate", { mode: "reference", ref_image, likeness, seed, count });
+
+export async function uploadReference(file) {
+  const fd = new FormData();
+  fd.append("file", file);
+  const r = await fetch(`${API}/upload`, { method: "POST", body: fd });
+  if (!r.ok) throw new Error(`upload -> ${r.status}`);
+  return r.json(); // { ref_image }
+}
+
 export const saveModel = (payload) => jpost("/models", payload);
 export const dedupCheck = (attributes) => jpost("/dedup-check", { attributes });
 

@@ -13,3 +13,5 @@ WORKFLOWS_DIR = BACKEND_ROOT / "workflows"
 # Sibling checkout of local-ai-workstation on this machine (not a sibling of
 # REPO_ROOT — it lives under C:/Working rather than C:/Users/djbua/repos).
 COMFYUI_OUTPUT_DIR = Path("C:/Working/local-ai-workstation/comfyui/output")
+# ComfyUI's LoadImage node reads reference uploads from its input/ dir by filename.
+COMFYUI_INPUT_DIR = Path("C:/Working/local-ai-workstation/comfyui/input")
