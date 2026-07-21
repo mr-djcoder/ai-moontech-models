@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useLayoutEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { generateDescribe, generateReference, uploadReference, pollUntilDone, saveModel, dedupCheck } from "../api.js";
 import CandidateGrid from "../components/CandidateGrid.jsx";
@@ -28,6 +28,17 @@ function buildAttributes(f) {
   };
 }
 const randSeed = () => Math.floor(Math.random() * 90000) + 10000;
+
+// Textarea that grows to fit its content — for the free-text brief fields that
+// can hold a sentence or two rather than a couple of words.
+function AutoText({ value, onChange, ...rest }) {
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (el) { el.style.height = "auto"; el.style.height = `${el.scrollHeight}px`; }
+  }, [value]);
+  return <textarea ref={ref} className="inp" rows={1} value={value} onChange={onChange} {...rest} />;
+}
 
 export default function Console() {
   const nav = useNavigate();
@@ -103,20 +114,18 @@ export default function Console() {
               <button className={mode === "describe" ? "on" : ""} onClick={() => setMode("describe")}>Describe</button>
               <button className={mode === "reference" ? "on" : ""} onClick={() => setMode("reference")}>From reference</button>
             </div>
-            <div className="field"><label>Name</label><input className="inp" value={form.name} onChange={set("name")} placeholder="Nadia" /></div>
-            <div className="row2">
+            <div className="field-grid">
+              <div className="field"><label>Name</label><input className="inp" value={form.name} onChange={set("name")} placeholder="Nadia" /></div>
               <div className="field"><label>Gender</label><input className="inp" value={form.gender} onChange={set("gender")} /></div>
               <div className="field"><label>Age band</label><input className="inp" value={form.age_band} onChange={set("age_band")} placeholder="early 30s" /></div>
-            </div>
-            <div className="field"><label>Race / ethnicity</label><input className="inp" value={form.race_ethnicity} onChange={set("race_ethnicity")} /></div>
-            <div className="row2">
+              <div className="field"><label>Race / ethnicity</label><input className="inp" value={form.race_ethnicity} onChange={set("race_ethnicity")} /></div>
               <div className="field"><label>Height</label><input className="inp" value={form.height} onChange={set("height")} /></div>
               <div className="field"><label>Build</label><input className="inp" value={form.build} onChange={set("build")} placeholder="lean athletic" /></div>
+              <div className="field"><label>Hair</label><input className="inp" value={form.hair} onChange={set("hair")} /></div>
+              <div className="field span"><label>Distinctive face</label><AutoText value={form.distinctive_face} onChange={set("distinctive_face")} placeholder="e.g. strong brows, small scar on the bridge of the nose, freckled cheeks" /></div>
+              <div className="field span"><label>Distinctive body</label><AutoText value={form.distinctive_body} onChange={set("distinctive_body")} placeholder="e.g. freckled shoulders, small wrist tattoo, faint collarbone scar" /></div>
+              <div className="field span"><label>Personality</label><AutoText value={form.personality} onChange={set("personality")} placeholder="e.g. warm, quick-witted, a little guarded" /></div>
             </div>
-            <div className="field"><label>Hair</label><input className="inp" value={form.hair} onChange={set("hair")} /></div>
-            <div className="field"><label>Distinctive face</label><input className="inp" value={form.distinctive_face} onChange={set("distinctive_face")} /></div>
-            <div className="field"><label>Distinctive body</label><input className="inp" value={form.distinctive_body} onChange={set("distinctive_body")} /></div>
-            <div className="field"><label>Personality</label><input className="inp" value={form.personality} onChange={set("personality")} /></div>
             {mode === "reference" ? (
               <>
                 <label className="drop" style={{ cursor: "pointer" }}>
@@ -153,9 +162,16 @@ export default function Console() {
             {mode === "describe" && !form.age_band && <div className="note"><span className="dot"></span><span>Age band is required before generating.</span></div>}
             {mode === "reference" && !refFile && <div className="note"><span className="dot"></span><span>Choose a reference image before generating.</span></div>}
             {genError && <div className="alert warn"><b>Generation failed.</b> {genError}</div>}
-            {candidates.length > 0
-              ? <CandidateGrid candidates={candidates} picked={picked} onPick={(a, f) => setPicked({ ...picked, [a]: f })} />
-              : <div className="note"><span className="dot"></span><span>Fill the brief and hit Generate to shoot the base sheet (front · 3/4 · profile · body).</span></div>}
+            {candidates.length > 0 ? (
+              <CandidateGrid candidates={candidates} picked={picked} onPick={(a, f) => setPicked({ ...picked, [a]: f })} />
+            ) : (
+              <>
+                <div className="ghost-sheet">
+                  {["front", "3/4", "profile", "body"].map((a) => <div key={a} className="ghost-slot">{a}</div>)}
+                </div>
+                <div className="note"><span className="dot"></span><span>Fill the brief and hit Generate to shoot the base sheet.</span></div>
+              </>
+            )}
           </div>
         </div>
 

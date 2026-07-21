@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap');
+
   /* MoonTech brand — deep-space dark, single committed theme */
   :root{
     --bg:#030308; --surface:#0A0A14; --panel:#0C0C18; --panel2:#12121F;
@@ -7,8 +9,8 @@
     --ok:#4ADE80; --warn:#FBBF24; --danger:#F87171;
     --shadow:0 22px 60px rgba(0,0,0,.6);
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Roboto Mono",monospace;
-    --sans:"DM Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    --display:"Clash Display","Syne",var(--sans);
+    --sans:"Hanken Grotesk",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --display:"Bricolage Grotesque","Hanken Grotesk",-apple-system,"Segoe UI",sans-serif;
   }
   *{box-sizing:border-box}
   body{margin:0;color:var(--ink);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased;
@@ -137,3 +139,21 @@
   @media(max-width:900px){.console{grid-template-columns:1fr}}
   @media(max-width:560px){.sec-head p{flex-basis:100%}}
   @media (prefers-reduced-motion: reduce){*{transition-duration:.001ms!important;animation-duration:.001ms!important}.card:hover,.btn.primary:hover{transform:none}}
+
+  /* ── Casting Console: top-to-bottom flow (Brief → Base sheet → Save) ── */
+  #console .console{display:flex;flex-direction:column;gap:20px}
+  #console .pane{width:100%}
+  .field-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:13px}
+  .field-grid .field.span{grid-column:1/-1}
+  /* auto-growing textareas for long free-text fields */
+  textarea.inp{resize:none;overflow:hidden;min-height:40px;line-height:1.5;font-family:var(--sans)}
+  /* Save laid out in two columns when it has room */
+  .save-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+  @media(max-width:640px){.save-grid{grid-template-columns:1fr}}
+  /* ghost empty state for the base sheet before a shoot */
+  .ghost-sheet{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  @media(max-width:640px){.ghost-sheet{grid-template-columns:repeat(2,1fr)}}
+  .ghost-slot{aspect-ratio:3/4;border:1.5px dashed var(--line2);border-radius:10px;display:flex;align-items:flex-end;padding:8px;color:var(--muted);font-family:var(--mono);font-size:11px;background:color-mix(in srgb,var(--panel2) 55%,transparent)}
+  /* sharper display type */
+  .sec-head h2{font-weight:700;letter-spacing:-.03em}
+  .brand{letter-spacing:-.02em}
