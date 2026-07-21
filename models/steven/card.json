@@ -1,0 +1,28 @@
+{
+  "slug": "steven",
+  "name": "Steven",
+  "gender": "male",
+  "status": "card",
+  "identity_string": "a synthetic man, early 30s, lean build, short dark hair, light stubble, hazel eyes",
+  "seed": 71042,
+  "attributes": {
+    "race_ethnicity": "",
+    "age_band": "early 30s",
+    "height": "",
+    "build": "",
+    "hair": "",
+    "distinctive_face": "",
+    "distinctive_body": "",
+    "personality": ""
+  },
+  "base_wardrobe": "plain neutral underwear set",
+  "reference_images": [
+    "reference/front.png",
+    "reference/34.png",
+    "reference/profile.png",
+    "reference/body.png"
+  ],
+  "provenance": "synthetic",
+  "release": null,
+  "created": "2026-07-21"
+}
