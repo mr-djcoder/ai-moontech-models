@@ -126,7 +126,9 @@ def save_model(req: SaveRequest):
         created=date.today().isoformat(),
     )
     models_store.write_card(MODELS_ROOT, card)
-    sha = git_ops.commit_and_push(MODELS_ROOT.parent, f"feat: add model {req.slug}")
+    sha = git_ops.commit_and_push(
+        MODELS_ROOT.parent, f"models/{req.slug}", f"feat: add model {req.slug}"
+    )
     return SaveResponse(ok=True, commit=sha)
 
 

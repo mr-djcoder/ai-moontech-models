@@ -9,8 +9,8 @@ def _run(cmd: list[str], cwd: Path) -> str:
     return result.stdout
 
 
-def commit_and_push(repo_root: Path, message: str, run=_run) -> str:
-    run(["git", "add", "-A"], repo_root)
+def commit_and_push(repo_root: Path, add_path: str, message: str, run=_run) -> str:
+    run(["git", "add", add_path], repo_root)
     run(["git", "commit", "-m", message], repo_root)
     run(["git", "push"], repo_root)
     sha = run(["git", "rev-parse", "--short", "HEAD"], repo_root)

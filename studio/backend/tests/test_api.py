@@ -189,6 +189,7 @@ def test_post_models_rejects_minor(tmp_path, monkeypatch):
     body = resp.json()
     assert body["ok"] is False
     assert "adult" in body["reason"].lower()
+    assert not (tmp_path / "x" / "card.json").exists()
 
 
 def test_post_models_saves_and_commits(tmp_path, monkeypatch):
@@ -204,7 +205,7 @@ def test_post_models_saves_and_commits(tmp_path, monkeypatch):
         return job_dir
     monkeypatch.setattr(main, "_candidate_source_dir", fake_source_dir_for)
 
-    def fake_commit_and_push(repo_root, message, **kwargs):
+    def fake_commit_and_push(repo_root, add_path, message, **kwargs):
         return "abc1234"
     monkeypatch.setattr(main.git_ops, "commit_and_push", fake_commit_and_push)
 
