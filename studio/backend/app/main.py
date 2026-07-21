@@ -1,9 +1,11 @@
+import os
 import shutil
 from datetime import date
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from app import comfy, git_ops, models_store, vram, workflows
 from app.config import MODELS_ROOT
@@ -108,6 +110,15 @@ def get_model(slug: str):
         return models_store.read_card(MODELS_ROOT, slug)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="model not found")
+
+
+@app.get("/models/{slug}/reference/{filename}")
+def model_reference_image(slug: str, filename: str):
+    base = (MODELS_ROOT / slug / "reference").resolve()
+    target = (base / filename).resolve()
+    if not str(target).startswith(str(base) + os.sep) or not target.is_file():
+        raise HTTPException(status_code=404, detail="reference image not found")
+    return FileResponse(target)
 
 
 @app.post("/models", response_model=SaveResponse)

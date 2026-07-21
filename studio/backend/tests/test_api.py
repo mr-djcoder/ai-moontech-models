@@ -315,3 +315,20 @@ def test_cors_allows_dev_origin():
     resp = client.get("/health", headers={"Origin": "http://localhost:5173"})
     assert resp.status_code == 200
     assert resp.headers.get("access-control-allow-origin") == "http://localhost:5173"
+
+
+def test_serves_existing_reference_image():
+    resp = client.get("/models/jess/reference/front.png")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "image/png"
+    assert len(resp.content) > 1000
+
+
+def test_missing_reference_image_404():
+    resp = client.get("/models/jess/reference/does-not-exist.png")
+    assert resp.status_code == 404
+
+
+def test_reference_image_rejects_traversal():
+    resp = client.get("/models/jess/reference/..%2f..%2fcard.json")
+    assert resp.status_code == 404
