@@ -9,3 +9,7 @@ OLLAMA_URL = "http://localhost:11434"
 CODING_MODEL = "qwen3-coder-32k"
 
 WORKFLOWS_DIR = BACKEND_ROOT / "workflows"
+
+# Sibling checkout of local-ai-workstation on this machine (not a sibling of
+# REPO_ROOT — it lives under C:/Working rather than C:/Users/djbua/repos).
+COMFYUI_OUTPUT_DIR = Path("C:/Working/local-ai-workstation/comfyui/output")

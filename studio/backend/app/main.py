@@ -1,6 +1,9 @@
+from datetime import date
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException
 
-from app import comfy, models_store, vram, workflows
+from app import comfy, git_ops, models_store, vram, workflows
 from app.config import MODELS_ROOT
 from app.jobs import JobStore
 from app.schema import (
@@ -10,8 +13,10 @@ from app.schema import (
     GenerateResponse,
     GenerateSheetRequest,
     JobStatus,
+    SaveRequest,
+    SaveResponse,
 )
-from app.safety import ANGLE_PHRASES
+from app.safety import ANGLE_PHRASES, check_save
 
 app = FastAPI(title="Virtual Model Studio backend")
 job_store = JobStore()
@@ -20,6 +25,15 @@ job_store = JobStore()
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+def _candidate_source_dir(slug: str) -> Path:
+    # In Phase 1, candidate PNGs are written by ComfyUI to its own output dir;
+    # the frontend plan will pass the actual job output dir. Placeholder seam
+    # kept as a separate function so tests can monkeypatch it without touching
+    # the route body.
+    from app.config import COMFYUI_OUTPUT_DIR
+    return COMFYUI_OUTPUT_DIR
 
 
 def _run_generate_job(job_id: str, req: GenerateRequest) -> None:
@@ -81,6 +95,39 @@ def get_model(slug: str):
         return models_store.read_card(MODELS_ROOT, slug)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="model not found")
+
+
+@app.post("/models", response_model=SaveResponse)
+def save_model(req: SaveRequest):
+    ok, reason = check_save(
+        provenance=req.provenance,
+        release=req.release,
+        is_real_person_reference=(req.provenance == "likeness-consented"),
+        # UNENFORCED in Phase 1: no celebrity/public-figure/stock-face detector exists.
+        # The global "refused outright, release or not" rule is real in check_save()'s
+        # guard logic, but nothing sets this True yet. Same stub status as dedup (#16).
+        # Do not treat check_save's celebrity branch as active protection until a
+        # detector task lands.
+        is_celebrity_or_public_figure=False,
+        age_band=req.attributes.age_band,
+    )
+    if not ok:
+        return SaveResponse(ok=False, reason=reason)
+
+    source_dir = _candidate_source_dir(req.slug)
+    reference_images = models_store.copy_reference_frames(
+        MODELS_ROOT, req.slug, req.picked, source_dir
+    )
+    card = Card(
+        slug=req.slug, name=req.name, gender=req.gender, status="card",
+        identity_string=req.identity_string, seed=req.seed,
+        attributes=req.attributes, reference_images=reference_images,
+        provenance=req.provenance, release=req.release,
+        created=date.today().isoformat(),
+    )
+    models_store.write_card(MODELS_ROOT, card)
+    sha = git_ops.commit_and_push(MODELS_ROOT.parent, f"feat: add model {req.slug}")
+    return SaveResponse(ok=True, commit=sha)
 
 
 @app.post("/generate-sheet", response_model=GenerateResponse)

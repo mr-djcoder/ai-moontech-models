@@ -175,6 +175,54 @@ def test_generate_sheet_unknown_slug_404(tmp_path, monkeypatch):
     assert resp.status_code == 404
 
 
+def test_post_models_rejects_minor(tmp_path, monkeypatch):
+    from app import main
+    monkeypatch.setattr(main, "MODELS_ROOT", tmp_path)
+    resp = client.post("/models", json={
+        "slug": "x", "name": "X", "gender": "female",
+        "identity_string": "s", "seed": 1,
+        "attributes": {"age_band": "teen"},
+        "provenance": "synthetic", "release": None,
+        "picked": {"front": "f.png", "34": "t.png", "profile": "p.png", "body": "b.png"},
+    })
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is False
+    assert "adult" in body["reason"].lower()
+
+
+def test_post_models_saves_and_commits(tmp_path, monkeypatch):
+    from app import main
+    monkeypatch.setattr(main, "MODELS_ROOT", tmp_path)
+
+    job_dir = tmp_path.parent / "job_output"
+    job_dir.mkdir()
+    for name in ["f.png", "t.png", "p.png", "b.png"]:
+        (job_dir / name).write_bytes(b"fake")
+
+    def fake_source_dir_for(slug):
+        return job_dir
+    monkeypatch.setattr(main, "_candidate_source_dir", fake_source_dir_for)
+
+    def fake_commit_and_push(repo_root, message, **kwargs):
+        return "abc1234"
+    monkeypatch.setattr(main.git_ops, "commit_and_push", fake_commit_and_push)
+
+    resp = client.post("/models", json={
+        "slug": "jess", "name": "Jess", "gender": "female",
+        "identity_string": "a synthetic woman, late 20s", "seed": 48120,
+        "attributes": {"age_band": "late 20s"},
+        "provenance": "synthetic", "release": None,
+        "picked": {"front": "f.png", "34": "t.png", "profile": "p.png", "body": "b.png"},
+    })
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True
+    assert body["commit"] == "abc1234"
+    assert (tmp_path / "jess" / "card.json").exists()
+    assert (tmp_path / "jess" / "reference" / "front.png").exists()
+
+
 def test_generate_restores_vram_on_unexpected_exception(monkeypatch):
     from app import main
 
