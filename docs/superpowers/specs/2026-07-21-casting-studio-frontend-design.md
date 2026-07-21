@@ -148,3 +148,24 @@ don't embed URLs.
 
 Turntable/360, reference-image upload, real dedup, LoRA promotion, auth, and any
 non-localhost deployment. Each is a later, separately-scoped piece.
+
+## Forward notes (record now, build later)
+
+Distinctive features — bald, mole, bad teeth, facial/mouth disability — are
+captured once in the brief's attribute fields, which assemble into
+`identity_string` (the card's permanent DNA), and are shown in the four neutral
+reference frames. This holds well at neutral. Two constraints apply to the
+*future* expression/ad-production work, not v1:
+
+1. **Reference-mode must carry `identity_string`.** `build_reference_graph`
+   currently prompts from angle + realism text only and leans entirely on the
+   reference image. Expression-revealed traits (e.g. teeth, only visible when
+   smiling) will slip unless the identity text travels with the reference image
+   into every expression generation.
+2. **LoRA is the reliable path for atypical faces.** Image models regress toward
+   typical faces in generated expressions (normalizing asymmetry, straightening a
+   palsy droop, "fixing" teeth). Text + IP-adapter pushes back but does not fully
+   win. For identity-critical distinctive/atypical features that must persist
+   across many expressions and ads, a per-model LoRA trained on the reference
+   sheet is the mechanism — this is the primary justification for the phase-2
+   "Promote to LoRA" path.
