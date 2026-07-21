@@ -14,9 +14,11 @@ _INSTRUCTION = (
     "skin texture with visible pores, faint blemishes and uneven skin tone; realistic "
     "hair with individual strands, flyaways, a natural imperfect hairline and visible "
     "roots; subtle facial asymmetry; natural under-eye shadows and fine lines; candid, "
-    "non-studio available lighting; captured on a real camera with a portrait lens and "
-    "shallow depth of field. Preserve every attribute in the description. Output ONLY "
-    "the prompt as one paragraph, no preamble, no quotes, no markdown, no lists."
+    "non-studio available lighting; captured on a real camera. Preserve every attribute "
+    "in the description. Do NOT specify camera framing, shot distance, crop, zoom, pose, "
+    "or composition (e.g. do not say portrait, close-up, headshot, or full-body) — those "
+    "are set separately per shot. Output ONLY the prompt as one paragraph, no preamble, "
+    "no quotes, no markdown, no lists."
 )
 
 _THINK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
