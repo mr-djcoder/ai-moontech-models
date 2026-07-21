@@ -2,7 +2,7 @@ import json
 import shutil
 from pathlib import Path
 
-from app.schema import Card
+from app.schema import Card, PickedFrame
 
 ANGLE_ORDER = ["front", "34", "profile", "body"]
 
@@ -58,7 +58,7 @@ def list_cards(models_root: Path) -> list[Card]:
 
 
 def copy_reference_frames(
-    models_root: Path, slug: str, picked: dict[str, str], source_dir: Path
+    models_root: Path, slug: str, picked: dict[str, PickedFrame], source_dir: Path
 ) -> list[str]:
     dest_dir = card_dir(models_root, slug) / "reference"
     dest_dir.mkdir(parents=True, exist_ok=True)
@@ -66,7 +66,8 @@ def copy_reference_frames(
     angle_filenames = {"front": "front.png", "34": "34.png",
                         "profile": "profile.png", "body": "body.png"}
     for angle in ANGLE_ORDER:
-        src = source_dir / picked[angle]
+        entry = picked[angle]
+        src = source_dir / entry.subfolder / entry.filename
         dest_name = angle_filenames[angle]
         dest = dest_dir / dest_name
         shutil.copyfile(src, dest)

@@ -20,7 +20,8 @@ def test_new_job_is_running():
 def test_set_result_marks_done():
     store = JobStore()
     job_id = store.create()
-    store.set_result(job_id, [Candidate(url="http://x/1.png", angle="front", index=0)])
+    store.set_result(job_id, [Candidate(
+        url="http://x/1.png", filename="1.png", angle="front", index=0)])
     status = store.get(job_id)
     assert status.status == "done"
     assert len(status.candidates) == 1

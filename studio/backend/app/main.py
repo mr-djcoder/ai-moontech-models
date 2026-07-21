@@ -1,3 +1,4 @@
+import shutil
 from datetime import date
 from pathlib import Path
 
@@ -60,8 +61,11 @@ def _run_generate_job(job_id: str, req: GenerateRequest) -> None:
                 return
             images = next(iter(entry["outputs"].values()))["images"]
             for i, img in enumerate(images):
+                filename = img["filename"]
+                subfolder = img.get("subfolder", "")
                 candidates.append(Candidate(
-                    url=comfy.output_image_url(img["filename"], img.get("subfolder", "")),
+                    url=comfy.output_image_url(filename, subfolder),
+                    filename=filename, subfolder=subfolder,
                     angle=angle, index=i,
                 ))
         job_store.set_result(job_id, candidates)
@@ -117,17 +121,28 @@ def save_model(req: SaveRequest):
         return SaveResponse(ok=False, reason=reason)
 
     source_dir = _candidate_source_dir(req.slug)
-    reference_images = models_store.copy_reference_frames(
-        MODELS_ROOT, req.slug, req.picked, source_dir
-    )
-    card = Card(
-        slug=req.slug, name=req.name, gender=req.gender, status="card",
-        identity_string=req.identity_string, seed=req.seed,
-        attributes=req.attributes, reference_images=reference_images,
-        provenance=req.provenance, release=req.release,
-        created=date.today().isoformat(),
-    )
-    models_store.write_card(MODELS_ROOT, card)
+    # Write phase: copy reference frames + build/write the card. If any step
+    # fails (e.g. a picked filename doesn't exist on disk), roll back the
+    # partial models/<slug>/ folder so a failed save leaves zero trace instead
+    # of a half-written directory with no card.json.
+    try:
+        reference_images = models_store.copy_reference_frames(
+            MODELS_ROOT, req.slug, req.picked, source_dir
+        )
+        card = Card(
+            slug=req.slug, name=req.name, gender=req.gender, status="card",
+            identity_string=req.identity_string, seed=req.seed,
+            attributes=req.attributes, reference_images=reference_images,
+            provenance=req.provenance, release=req.release,
+            created=date.today().isoformat(),
+        )
+        models_store.write_card(MODELS_ROOT, card)
+    except Exception as exc:  # noqa: BLE001 - surfaced to caller as ok=False
+        shutil.rmtree(models_store.card_dir(MODELS_ROOT, req.slug), ignore_errors=True)
+        return SaveResponse(ok=False, reason=str(exc))
+
+    # Git phase is intentionally NOT wrapped: a commit_and_push failure after a
+    # successful write is a deferred gap (ledger Finding 3), left as a 500.
     sha = git_ops.commit_and_push(
         MODELS_ROOT.parent, f"models/{req.slug}", f"feat: add model {req.slug}"
     )

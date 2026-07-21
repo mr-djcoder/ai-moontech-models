@@ -50,6 +50,11 @@ def test_generate_describe_and_poll_job(monkeypatch):
     assert body["status"] == "done"
     assert len(body["candidates"]) == 4  # one per angle
     assert {c["angle"] for c in body["candidates"]} == {"front", "34", "profile", "body"}
+    # Candidates round-trip the exact filename + subfolder from ComfyUI history,
+    # so a client never has to parse them back out of the view URL.
+    for c in body["candidates"]:
+        assert c["filename"] == "front_0.png"
+        assert c["subfolder"] == "job1"
 
 
 def test_jobs_unknown_id_returns_404():
@@ -183,7 +188,8 @@ def test_post_models_rejects_minor(tmp_path, monkeypatch):
         "identity_string": "s", "seed": 1,
         "attributes": {"age_band": "teen"},
         "provenance": "synthetic", "release": None,
-        "picked": {"front": "f.png", "34": "t.png", "profile": "p.png", "body": "b.png"},
+        "picked": {"front": {"filename": "f.png"}, "34": {"filename": "t.png"},
+                   "profile": {"filename": "p.png"}, "body": {"filename": "b.png"}},
     })
     assert resp.status_code == 200
     body = resp.json()
@@ -214,7 +220,8 @@ def test_post_models_saves_and_commits(tmp_path, monkeypatch):
         "identity_string": "a synthetic woman, late 20s", "seed": 48120,
         "attributes": {"age_band": "late 20s"},
         "provenance": "synthetic", "release": None,
-        "picked": {"front": "f.png", "34": "t.png", "profile": "p.png", "body": "b.png"},
+        "picked": {"front": {"filename": "f.png"}, "34": {"filename": "t.png"},
+                   "profile": {"filename": "p.png"}, "body": {"filename": "b.png"}},
     })
     assert resp.status_code == 200
     body = resp.json()
@@ -222,6 +229,40 @@ def test_post_models_saves_and_commits(tmp_path, monkeypatch):
     assert body["commit"] == "abc1234"
     assert (tmp_path / "jess" / "card.json").exists()
     assert (tmp_path / "jess" / "reference" / "front.png").exists()
+
+
+def test_post_models_rolls_back_partial_write_on_bad_picked(tmp_path, monkeypatch):
+    from app import main
+    monkeypatch.setattr(main, "MODELS_ROOT", tmp_path)
+
+    job_dir = tmp_path.parent / "job_output_partial"
+    job_dir.mkdir()
+    # Only three of the four picked files exist; "body" names a missing file.
+    for name in ["f.png", "t.png", "p.png"]:
+        (job_dir / name).write_bytes(b"fake")
+
+    def fake_source_dir_for(slug):
+        return job_dir
+    monkeypatch.setattr(main, "_candidate_source_dir", fake_source_dir_for)
+
+    def fail_commit(*args, **kwargs):
+        raise AssertionError("commit_and_push must not run when the write phase fails")
+    monkeypatch.setattr(main.git_ops, "commit_and_push", fail_commit)
+
+    resp = client.post("/models", json={
+        "slug": "jess", "name": "Jess", "gender": "female",
+        "identity_string": "a synthetic woman, late 20s", "seed": 48120,
+        "attributes": {"age_band": "late 20s"},
+        "provenance": "synthetic", "release": None,
+        "picked": {"front": {"filename": "f.png"}, "34": {"filename": "t.png"},
+                   "profile": {"filename": "p.png"}, "body": {"filename": "missing.png"}},
+    })
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is False
+    assert body["reason"]
+    # A failed save must leave zero trace: no partial models/<slug>/ folder.
+    assert not (tmp_path / "jess").exists()
 
 
 def test_generate_restores_vram_on_unexpected_exception(monkeypatch):

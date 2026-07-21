@@ -53,6 +53,10 @@ class GenerateRequest(BaseModel):
 
 class Candidate(BaseModel):
     url: str
+    # The exact filename + subfolder ComfyUI reported in its history response,
+    # carried explicitly so a client never has to parse them back out of `url`.
+    filename: str
+    subfolder: str = ""
     angle: str
     index: int
 
@@ -67,12 +71,12 @@ class JobStatus(BaseModel):
     error: Optional[str] = None
 
 
-class PickedFrames(BaseModel):
-    front: str
-    profile: str
-    body: str
-    # NOTE: "34" (three-quarter) is not a valid Python identifier, handled via
-    # the raw dict form in SaveRequest.picked instead of a named field here.
+class PickedFrame(BaseModel):
+    # The exact `filename` a client received from a Candidate, plus the
+    # `subfolder` it came from, so the subfolder round-trips into the save
+    # instead of being silently dropped.
+    filename: str
+    subfolder: str = ""
 
 
 class SaveRequest(BaseModel):
@@ -84,7 +88,8 @@ class SaveRequest(BaseModel):
     attributes: Attributes
     provenance: Provenance
     release: Optional[Release] = None
-    picked: dict[str, str]  # keys: front, 34, profile, body -> candidate url/path
+    # keys: front, 34, profile, body -> the picked Candidate's filename+subfolder
+    picked: dict[str, PickedFrame]
 
 
 class SaveResponse(BaseModel):

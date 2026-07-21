@@ -1,6 +1,6 @@
 import pytest
 from pydantic import ValidationError
-from app.schema import Attributes, Card, GenerateRequest, SaveRequest
+from app.schema import Attributes, Candidate, Card, GenerateRequest, SaveRequest
 
 
 def test_card_roundtrip():
@@ -42,12 +42,45 @@ def test_generate_request_modes():
         GenerateRequest(mode="not-a-mode", count=8)
 
 
+def test_candidate_carries_filename_and_subfolder():
+    cand = Candidate(
+        url="http://comfy/view?filename=front_0.png&subfolder=job1&type=output",
+        filename="front_0.png", subfolder="job1", angle="front", index=0,
+    )
+    assert cand.filename == "front_0.png"
+    assert cand.subfolder == "job1"
+
+
+def test_candidate_subfolder_defaults_empty():
+    cand = Candidate(
+        url="http://comfy/view?filename=front_0.png&subfolder=&type=output",
+        filename="front_0.png", angle="front", index=0,
+    )
+    assert cand.subfolder == ""
+
+
 def test_save_request_requires_picked():
     req = SaveRequest(
         slug="jess", name="Jess", gender="female",
         identity_string="s", seed=1, attributes=Attributes(age_band="30s"),
         provenance="synthetic", release=None,
-        picked={"front": "job123/front_0.png", "34": "job123/34_0.png",
-                "profile": "job123/profile_0.png", "body": "job123/body_0.png"},
+        picked={"front": {"filename": "front_0.png", "subfolder": "job123"},
+                "34": {"filename": "34_0.png", "subfolder": "job123"},
+                "profile": {"filename": "profile_0.png", "subfolder": "job123"},
+                "body": {"filename": "body_0.png", "subfolder": "job123"}},
     )
-    assert req.picked["front"] == "job123/front_0.png"
+    assert req.picked["front"].filename == "front_0.png"
+    assert req.picked["front"].subfolder == "job123"
+
+
+def test_save_request_picked_subfolder_optional():
+    req = SaveRequest(
+        slug="jess", name="Jess", gender="female",
+        identity_string="s", seed=1, attributes=Attributes(age_band="30s"),
+        provenance="synthetic", release=None,
+        picked={"front": {"filename": "front_0.png"},
+                "34": {"filename": "34_0.png"},
+                "profile": {"filename": "profile_0.png"},
+                "body": {"filename": "body_0.png"}},
+    )
+    assert req.picked["front"].subfolder == ""
