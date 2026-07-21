@@ -9,7 +9,7 @@ export default function ModelCard({ model, index }) {
       <div className="shot">
         <span className="frameno">A{String(index + 1).padStart(2, "0")}</span>
         <span className={`stamp ${stamp}`}>{stamp === "lora" ? "LoRA" : "CARD"}</span>
-        {front && <img src={imageUrl(model.slug, front)} alt={model.name} />}
+        {front && <img src={imageUrl(model.slug, front)} alt={model.name} onError={(e) => { e.currentTarget.style.display = "none"; }} />}
       </div>
       <div className="card-body">
         <h3>{model.name}</h3>
