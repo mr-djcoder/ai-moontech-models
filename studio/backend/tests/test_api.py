@@ -98,6 +98,83 @@ def test_generate_restores_vram_even_when_comfy_job_errors(monkeypatch):
     assert restore_calls == [True]
 
 
+def test_get_models_empty(tmp_path, monkeypatch):
+    from app import main
+    monkeypatch.setattr(main, "MODELS_ROOT", tmp_path)
+    resp = client.get("/models")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_get_models_and_get_one(tmp_path, monkeypatch):
+    from app import main, models_store
+    from app.schema import Attributes, Card
+
+    monkeypatch.setattr(main, "MODELS_ROOT", tmp_path)
+    card = Card(
+        slug="jess", name="Jess", gender="female", status="card",
+        identity_string="s", seed=48120, attributes=Attributes(age_band="late 20s"),
+        reference_images=["reference/front.png"], provenance="synthetic",
+        release=None, created="2026-07-21",
+    )
+    models_store.write_card(tmp_path, card)
+
+    list_resp = client.get("/models")
+    assert list_resp.status_code == 200
+    assert len(list_resp.json()) == 1
+    assert list_resp.json()[0]["slug"] == "jess"
+
+    get_resp = client.get("/models/jess")
+    assert get_resp.status_code == 200
+    assert get_resp.json()["seed"] == 48120
+
+    missing_resp = client.get("/models/nope")
+    assert missing_resp.status_code == 404
+
+
+def test_generate_sheet_uses_card_identity_and_seed(tmp_path, monkeypatch):
+    from app import main, models_store
+    from app.schema import Attributes, Card
+
+    monkeypatch.setattr(main, "MODELS_ROOT", tmp_path)
+    card = Card(
+        slug="jess", name="Jess", gender="female", status="card",
+        identity_string="a synthetic woman, late 20s", seed=48120,
+        attributes=Attributes(age_band="late 20s"), reference_images=[],
+        provenance="synthetic", release=None, created="2026-07-21",
+    )
+    models_store.write_card(tmp_path, card)
+
+    def fake_free_vram(**kwargs):
+        return {"stopped": True}
+    def fake_restore_model(**kwargs):
+        return {"restored": True}
+    def fake_submit(graph, **kwargs):
+        assert graph["8"]["inputs"]["seed"] == 48120
+        return "prompt-x"
+    def fake_poll_history(prompt_id, **kwargs):
+        return {"status": {"status_str": "success"},
+                "outputs": {"11": {"images": [{"filename": "f.png", "subfolder": "j", "type": "output"}]}}}
+
+    monkeypatch.setattr(main.vram, "free_vram", fake_free_vram)
+    monkeypatch.setattr(main.vram, "restore_model", fake_restore_model)
+    monkeypatch.setattr(main.comfy, "submit", fake_submit)
+    monkeypatch.setattr(main.comfy, "poll_history", fake_poll_history)
+
+    resp = client.post("/generate-sheet", json={"slug": "jess"})
+    assert resp.status_code == 200
+    job_id = resp.json()["job_id"]
+    status = client.get(f"/jobs/{job_id}").json()
+    assert status["status"] == "done"
+
+
+def test_generate_sheet_unknown_slug_404(tmp_path, monkeypatch):
+    from app import main
+    monkeypatch.setattr(main, "MODELS_ROOT", tmp_path)
+    resp = client.post("/generate-sheet", json={"slug": "nope"})
+    assert resp.status_code == 404
+
+
 def test_generate_restores_vram_on_unexpected_exception(monkeypatch):
     from app import main
 

@@ -105,3 +105,7 @@ class DedupMatch(BaseModel):
 
 class DedupResponse(BaseModel):
     matches: list[DedupMatch] = []
+
+
+class GenerateSheetRequest(BaseModel):
+    slug: str

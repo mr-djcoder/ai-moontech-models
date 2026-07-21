@@ -1,8 +1,16 @@
 from fastapi import FastAPI, HTTPException
 
-from app import comfy, vram, workflows
+from app import comfy, models_store, vram, workflows
+from app.config import MODELS_ROOT
 from app.jobs import JobStore
-from app.schema import Candidate, GenerateRequest, GenerateResponse, JobStatus
+from app.schema import (
+    Candidate,
+    Card,
+    GenerateRequest,
+    GenerateResponse,
+    GenerateSheetRequest,
+    JobStatus,
+)
 from app.safety import ANGLE_PHRASES
 
 app = FastAPI(title="Virtual Model Studio backend")
@@ -60,3 +68,31 @@ def get_job(job_id: str):
         return job_store.get(job_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="job not found")
+
+
+@app.get("/models", response_model=list[Card])
+def get_models():
+    return models_store.list_cards(MODELS_ROOT)
+
+
+@app.get("/models/{slug}", response_model=Card)
+def get_model(slug: str):
+    try:
+        return models_store.read_card(MODELS_ROOT, slug)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="model not found")
+
+
+@app.post("/generate-sheet", response_model=GenerateResponse)
+def generate_sheet(req: GenerateSheetRequest):
+    try:
+        card = models_store.read_card(MODELS_ROOT, req.slug)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="model not found")
+    gen_req = GenerateRequest(
+        mode="describe", identity_string=card.identity_string,
+        seed=card.seed, count=8,
+    )
+    job_id = job_store.create()
+    _run_generate_job(job_id, gen_req)
+    return GenerateResponse(job_id=job_id)
