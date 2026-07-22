@@ -4,7 +4,11 @@ _ADULT_BANDS_REJECT_KEYWORDS = ["teen", "minor", "child", "kid"]
 
 REALISM_NEGATIVE_PROMPT = (
     "glossy render, plastic skin, airbrushed, studio-perfect lighting, "
-    "CGI look, waxy skin, overly smooth, beauty-filter, artificial symmetry"
+    "CGI look, waxy skin, overly smooth, beauty-filter, artificial symmetry, "
+    "wig, doll hair, mannequin hair, helmet hair, perfectly styled hair, "
+    "smooth flawless skin, poreless, uncanny valley, 3d render, cartoon, "
+    "deepfake sheen, over-sharpened, oversaturated, retouched, instagram filter, "
+    "flawless complexion, perfectly symmetrical face, video game render, unreal engine"
 )
 
 ANGLE_PHRASES = {

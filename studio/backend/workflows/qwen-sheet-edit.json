@@ -2,7 +2,7 @@
   "1": {
     "class_type": "UNETLoader",
     "inputs": {
-      "unet_name": "qwen_image_edit_fp8_e4m3fn.safetensors",
+      "unet_name": "qwen_image_edit_2511_fp8mixed.safetensors",
       "weight_dtype": "default"
     }
   },
@@ -15,10 +15,7 @@
   "3": {
     "class_type": "ModelSamplingAuraFlow",
     "inputs": {
-      "model": [
-        "1",
-        0
-      ],
+      "model": ["1", 0],
       "shift": 3.1
     }
   },
@@ -30,89 +27,42 @@
     }
   },
   "5": {
-    "class_type": "TextEncodeQwenImageEdit",
+    "class_type": "TextEncodeQwenImageEditPlus",
     "inputs": {
-      "clip": [
-        "4",
-        0
-      ],
+      "clip": ["4", 0],
       "prompt": "REPLACED_AT_RUNTIME",
-      "vae": [
-        "9",
-        0
-      ],
-      "image": [
-        "2",
-        0
-      ]
+      "vae": ["9", 0],
+      "image1": ["2", 0]
     }
   },
   "6": {
-    "class_type": "TextEncodeQwenImageEdit",
+    "class_type": "TextEncodeQwenImageEditPlus",
     "inputs": {
-      "clip": [
-        "4",
-        0
-      ],
-      "prompt": "REPLACED_AT_RUNTIME",
-      "vae": [
-        "9",
-        0
-      ],
-      "image": [
-        "2",
-        0
-      ]
-    }
-  },
-  "12": {
-    "class_type": "VAEEncode",
-    "inputs": {
-      "pixels": [
-        "2",
-        0
-      ],
-      "vae": [
-        "9",
-        0
-      ]
+      "clip": ["4", 0],
+      "prompt": "REPLACED_AT_RUNTIME"
     }
   },
   "7": {
-    "class_type": "RepeatLatentBatch",
+    "class_type": "EmptySD3LatentImage",
     "inputs": {
-      "samples": [
-        "12",
-        0
-      ],
-      "amount": 8
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 8
     }
   },
   "8": {
     "class_type": "KSampler",
     "inputs": {
-      "model": [
-        "3",
-        0
-      ],
-      "positive": [
-        "5",
-        0
-      ],
-      "negative": [
-        "6",
-        0
-      ],
-      "latent_image": [
-        "7",
-        0
-      ],
+      "model": ["3", 0],
+      "positive": ["5", 0],
+      "negative": ["6", 0],
+      "latent_image": ["7", 0],
       "seed": 42,
       "steps": 20,
-      "cfg": 2.5,
+      "cfg": 4.0,
       "sampler_name": "euler",
       "scheduler": "simple",
-      "denoise": 0.65
+      "denoise": 1.0
     }
   },
   "9": {
@@ -124,23 +74,56 @@
   "10": {
     "class_type": "VAEDecode",
     "inputs": {
-      "samples": [
-        "8",
-        0
-      ],
-      "vae": [
-        "9",
-        0
-      ]
+      "samples": ["8", 0],
+      "vae": ["9", 0]
+    }
+  },
+  "12": {
+    "class_type": "UltralyticsDetectorProvider",
+    "inputs": {
+      "model_name": "bbox/face_yolov8m.pt"
+    }
+  },
+  "13": {
+    "class_type": "FaceDetailer",
+    "inputs": {
+      "image": ["10", 0],
+      "model": ["3", 0],
+      "clip": ["4", 0],
+      "vae": ["9", 0],
+      "positive": ["5", 0],
+      "negative": ["6", 0],
+      "bbox_detector": ["12", 0],
+      "guide_size": 512,
+      "guide_size_for": true,
+      "max_size": 1024,
+      "seed": 42,
+      "steps": 20,
+      "cfg": 4.0,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 0.35,
+      "feather": 5,
+      "noise_mask": true,
+      "force_inpaint": true,
+      "bbox_threshold": 0.5,
+      "bbox_dilation": 10,
+      "bbox_crop_factor": 3.0,
+      "sam_detection_hint": "center-1",
+      "sam_dilation": 0,
+      "sam_threshold": 0.93,
+      "sam_bbox_expansion": 0,
+      "sam_mask_hint_threshold": 0.7,
+      "sam_mask_hint_use_negative": "False",
+      "drop_size": 10,
+      "wildcard": "",
+      "cycle": 1
     }
   },
   "11": {
     "class_type": "SaveImage",
     "inputs": {
-      "images": [
-        "10",
-        0
-      ],
+      "images": ["13", 0],
       "filename_prefix": "sheet_ref"
     }
   }
