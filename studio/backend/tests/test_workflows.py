@@ -293,3 +293,25 @@ def test_reference_graph_syncs_facedetailer_seed():
     )
     assert graph["13"]["inputs"]["seed"] == 777
     assert graph["8"]["inputs"]["seed"] == 777
+
+
+def test_reference_graph_injects_extra_modifier():
+    base = workflows.build_reference_graph(
+        ref_image_path="r.png", angle="front", seed=1, count=1,
+    )["5"]["inputs"]["prompt"]
+    withx = workflows.build_reference_graph(
+        ref_image_path="r.png", angle="front", seed=1, count=1,
+        extra="warm side lighting, close head-and-shoulders framing",
+    )["5"]["inputs"]["prompt"]
+    assert "warm side lighting, close head-and-shoulders framing" in withx
+    assert withx != base
+
+
+def test_reference_graph_empty_extra_is_unchanged():
+    base = workflows.build_reference_graph(
+        ref_image_path="r.png", angle="body", seed=7, count=2,
+    )["5"]["inputs"]["prompt"]
+    same = workflows.build_reference_graph(
+        ref_image_path="r.png", angle="body", seed=7, count=2, extra="",
+    )["5"]["inputs"]["prompt"]
+    assert base == same

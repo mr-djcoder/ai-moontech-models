@@ -150,7 +150,7 @@ _SELFIE_NEGATIVE = (
 
 def build_reference_graph(
     ref_image_path: str, angle: str, seed: int, count: int,
-    identity_string: str | None = None,
+    identity_string: str | None = None, extra: str = "",
 ) -> dict:
     """Build a Qwen-Image-Edit reference graph (identity-preserving).
 
@@ -172,10 +172,12 @@ def build_reference_graph(
     graph["2"]["inputs"]["image"] = ref_image_path
     # Ordered high-signal-first (Qwen weights early tokens more): the shot, then
     # who it is, then house style, then framing/wardrobe/quality.
+    extra_clause = f"{extra.strip()}, " if extra and extra.strip() else ""
     graph["5"]["inputs"]["prompt"] = (
         f"{phrase}, {pose}, "
         f"{_IDENTITY_CLAUSE}, {_BODY_CLAUSE}, {refine}{face_clause}"
         f"{_PORTRAIT_BASE}, {_REFRAME_CLAUSE}, {_ANGLE_FRAMING}, "
+        f"{extra_clause}"
         f"{_WARDROBE}, {_QUALITY_TAIL}"
     )
     # Reference adds the selfie negative on top of the shared base.
