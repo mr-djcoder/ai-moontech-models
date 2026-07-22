@@ -1,0 +1,28 @@
+{
+  "slug": "cecil",
+  "name": "Cecil",
+  "gender": "Female",
+  "status": "card",
+  "identity_string": "a synthetic woman, Filipino, Mid 40s, Chubby build, Long black hair, big boobs, thick thighs although still looks good due to her filipino genes",
+  "seed": 97002,
+  "attributes": {
+    "race_ethnicity": "Filipino",
+    "age_band": "Mid 40s",
+    "height": "5'3",
+    "build": "Chubby",
+    "hair": "Long black hair",
+    "distinctive_face": "",
+    "distinctive_body": "big boobs, thick thighs although still looks good due to her filipino genes",
+    "personality": "Bubbly, friendly and flirty"
+  },
+  "base_wardrobe": "plain neutral underwear set",
+  "reference_images": [
+    "reference/front.png",
+    "reference/34.png",
+    "reference/profile.png",
+    "reference/body.png"
+  ],
+  "provenance": "synthetic",
+  "release": null,
+  "created": "2026-07-21"
+}
