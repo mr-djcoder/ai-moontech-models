@@ -518,3 +518,82 @@ def test_dataset_endpoint_runs_job_and_returns_candidates(monkeypatch, tmp_path)
     assert job["status"] == "done"
     assert len(job["candidates"]) == 4
     assert job["candidates"][0]["filename"] == "sheet_ref_front_0.png"
+
+
+def test_dataset_endpoint_unknown_slug_returns_404(monkeypatch, tmp_path):
+    from app import main
+
+    def _raise_not_found(root, slug):
+        raise FileNotFoundError(slug)
+    monkeypatch.setattr(main.models_store, "read_card", _raise_not_found)
+    monkeypatch.setattr(main, "MODELS_ROOT", tmp_path)
+
+    from fastapi.testclient import TestClient
+    client = TestClient(main.app)
+    r = client.post("/models/does-not-exist/dataset", json={"count": 4})
+    assert r.status_code == 404
+
+
+def test_dataset_endpoint_empty_reference_images_returns_400(monkeypatch, tmp_path):
+    from app import main
+    from app.schema import Attributes, Card
+
+    card = Card(
+        slug="cecil", name="Cecil", gender="Female", status="card",
+        identity_string="a Filipino woman, mid 40s", seed=123,
+        attributes=Attributes(age_band="mid 40s"),
+        reference_images=[], provenance="synthetic",
+        created="2026-07-22",
+    )
+    monkeypatch.setattr(main.models_store, "read_card", lambda root, slug: card)
+    monkeypatch.setattr(main, "MODELS_ROOT", tmp_path)
+
+    from fastapi.testclient import TestClient
+    client = TestClient(main.app)
+    r = client.post("/models/cecil/dataset", json={"count": 4})
+    assert r.status_code == 400
+
+
+def test_dataset_endpoint_missing_reference_file_returns_400(monkeypatch, tmp_path):
+    from app import main
+    from app.schema import Attributes, Card
+
+    # Card lists a reference frame, but it was never written to disk.
+    card = Card(
+        slug="cecil", name="Cecil", gender="Female", status="card",
+        identity_string="a Filipino woman, mid 40s", seed=123,
+        attributes=Attributes(age_band="mid 40s"),
+        reference_images=["reference/front.png"], provenance="synthetic",
+        created="2026-07-22",
+    )
+    monkeypatch.setattr(main.models_store, "read_card", lambda root, slug: card)
+    monkeypatch.setattr(main, "MODELS_ROOT", tmp_path)
+
+    from fastapi.testclient import TestClient
+    client = TestClient(main.app)
+    r = client.post("/models/cecil/dataset", json={"count": 4})
+    assert r.status_code == 400
+
+
+def test_dataset_endpoint_non_numeric_count_returns_400(monkeypatch, tmp_path):
+    from app import main
+    from app.schema import Attributes, Card
+
+    card = Card(
+        slug="cecil", name="Cecil", gender="Female", status="card",
+        identity_string="a Filipino woman, mid 40s", seed=123,
+        attributes=Attributes(age_band="mid 40s"),
+        reference_images=["reference/front.png"], provenance="synthetic",
+        created="2026-07-22",
+    )
+    monkeypatch.setattr(main.models_store, "read_card", lambda root, slug: card)
+    ref_src = tmp_path / "cecil" / "reference"
+    ref_src.mkdir(parents=True)
+    (ref_src / "front.png").write_bytes(b"png")
+    monkeypatch.setattr(main, "MODELS_ROOT", tmp_path)
+    monkeypatch.setattr(main, "COMFYUI_INPUT_DIR", tmp_path / "input")
+
+    from fastapi.testclient import TestClient
+    client = TestClient(main.app)
+    r = client.post("/models/cecil/dataset", json={"count": "abc"})
+    assert r.status_code == 400

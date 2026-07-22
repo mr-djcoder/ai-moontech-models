@@ -81,7 +81,10 @@ def _candidate_source_dir(slug: str) -> Path:
 def _seed_card_reference(slug: str) -> str:
     """Copy the card's first reference frame into ComfyUI's input dir and return
     the filename build_dataset_graphs should anchor on."""
-    card = models_store.read_card(MODELS_ROOT, slug)
+    try:
+        card = models_store.read_card(MODELS_ROOT, slug)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="model not found")
     if not card.reference_images:
         raise HTTPException(status_code=400, detail="model has no reference frames")
     src = (MODELS_ROOT / slug / card.reference_images[0])
@@ -235,7 +238,10 @@ def get_model(slug: str):
 def generate_dataset(slug: str, req: dict | None = None):
     if not _SAFE_SEGMENT.match(slug):
         raise HTTPException(status_code=404, detail="model not found")
-    count = int((req or {}).get("count", 40))
+    try:
+        count = int((req or {}).get("count", 40))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="count must be an integer")
     ref_image = _seed_card_reference(slug)
     job_id = job_store.create()
     threading.Thread(
