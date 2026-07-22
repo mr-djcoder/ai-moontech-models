@@ -1,4 +1,4 @@
-import { useState, useLayoutEffect, useRef } from "react";
+import { useState, useLayoutEffect, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { generateDescribe, generateReference, uploadReference, pollUntilDone, saveModel, dedupCheck } from "../api.js";
 import CandidateGrid from "../components/CandidateGrid.jsx";
@@ -6,6 +6,20 @@ import SavePanel from "../components/SavePanel.jsx";
 
 const ANGLES = ["front", "34", "profile", "body"];
 const EMPTY = { name: "", gender: "Female", age_band: "", race_ethnicity: "", height: "", build: "", hair: "", distinctive_face: "", distinctive_body: "", personality: "" };
+
+// A generated sheet costs minutes to render, so it's stashed here and auto-restored
+// if the user navigates away (or refreshes) before saving. Cleared on Save or Discard.
+const PENDING_KEY = "moontech.pendingSheet";
+
+function timeAgo(ts) {
+  if (!ts) return "";
+  const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+  if (s < 60) return "just now";
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60);
+  return h < 24 ? `${h}h ago` : `${Math.round(h / 24)}d ago`;
+}
 
 function genderWord(g) {
   const s = (g || "").toLowerCase();
@@ -45,7 +59,6 @@ export default function Console() {
   const [form, setForm] = useState(EMPTY);
   const [mode, setMode] = useState("describe");
   const [refFile, setRefFile] = useState(null);
-  const [likeness, setLikeness] = useState(0.65);
   const [seed, setSeed] = useState(randSeed());
   const [count, setCount] = useState(4);
   const [candidates, setCandidates] = useState([]);
@@ -55,6 +68,47 @@ export default function Console() {
   const [genError, setGenError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
+  const [sheetTs, setSheetTs] = useState(null);
+  const [resumed, setResumed] = useState(false);
+
+  // Restore an unsaved sheet on mount, before the first paint of an empty grid.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(PENDING_KEY);
+      if (!raw) return;
+      const s = JSON.parse(raw);
+      if (!s || !Array.isArray(s.candidates) || s.candidates.length === 0) return;
+      setForm(s.form ?? EMPTY);
+      setMode(s.mode ?? "describe");
+      setSeed(s.seed ?? randSeed());
+      setCount(s.count ?? 4);
+      setCandidates(s.candidates);
+      setPicked(s.picked ?? {});
+      setDupes(s.dupes ?? []);
+      setSheetTs(s.ts ?? Date.now());
+      setResumed(true);
+    } catch { /* ignore corrupt storage */ }
+  }, []);
+
+  // Persist the sheet whenever it or the picks change; skip while there's nothing
+  // shot yet so we never clobber a saved sheet with an empty one.
+  useEffect(() => {
+    if (candidates.length === 0) return;
+    try {
+      localStorage.setItem(PENDING_KEY, JSON.stringify({
+        v: 1, ts: sheetTs, form, mode, seed, count, candidates, picked, dupes,
+      }));
+    } catch { /* quota / disabled storage — non-fatal */ }
+  }, [candidates, picked, dupes, form, mode, seed, count, sheetTs]);
+
+  function clearPending() {
+    try { localStorage.removeItem(PENDING_KEY); } catch { /* non-fatal */ }
+  }
+
+  function discardSheet() {
+    clearPending();
+    setCandidates([]); setPicked({}); setDupes([]); setResumed(false); setSheetTs(null);
+  }
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
   const identity = assembleIdentity(form);
@@ -63,17 +117,21 @@ export default function Console() {
 
   async function generate() {
     setBusy(true); setGenError(null); setCandidates([]); setPicked({}); setDupes([]);
+    setResumed(false); clearPending();
     try {
       let job_id;
       if (mode === "reference") {
         if (!refFile) { setGenError("choose a reference image first"); return; }
         const { ref_image } = await uploadReference(refFile);
-        ({ job_id } = await generateReference({ ref_image, likeness, seed, count }));
+        // Send the written description too: it shapes the body (physique, hair,
+        // age) so the full-body shot matches the model, not a generic build.
+        ({ job_id } = await generateReference({ ref_image, identity_string: identity, seed, count }));
       } else {
         ({ job_id } = await generateDescribe({ identity_string: identity, seed, count }));
       }
       const job = await pollUntilDone(job_id);
       if (job.status === "error") { setGenError(job.error || "generation failed"); return; }
+      setSheetTs(Date.now());
       setCandidates(job.candidates);
       // Advisory near-duplicate check; needs age_band, returns [] until #16 lands.
       if (form.age_band) {
@@ -93,6 +151,8 @@ export default function Console() {
         picked,
       });
       if (!res.ok) { setSaveError(res.reason || "save rejected"); return; }
+      if (res.warning) console.warn(`Model saved but: ${res.warning}`);
+      clearPending();
       nav(`/model/${slug}`);
     } catch (e) { setSaveError(e.message); }
     finally { setSaving(false); }
@@ -133,12 +193,7 @@ export default function Console() {
                   <br /><span style={{ fontSize: 11 }}>seeds the look · synthetic output</span>
                   <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => setRefFile(e.target.files?.[0] || null)} />
                 </label>
-                <div className="likeness">
-                  <div className="lk-top"><span>Likeness</span><span className="val">{likeness.toFixed(2)}</span></div>
-                  <input type="range" min="0" max="1" step="0.05" value={likeness} onChange={(e) => setLikeness(parseFloat(e.target.value))} style={{ width: "100%", accentColor: "var(--violet)" }} />
-                  <div className="scale"><span>0.0 loose</span><span>1.0 exact</span></div>
-                </div>
-                <div className="note"><span className="dot"></span><span>Higher likeness hugs the reference; lower keeps it a fresh, distinct face.</span></div>
+                <div className="note"><span className="dot"></span><span>The reference seeds identity; each angle is re-shot as a neutral studio frame with the same face.</span></div>
               </>
             ) : (
               <div className="note"><span className="dot"></span><span>Describe mode — the brief is enriched into a photoreal prompt at generation.</span></div>
@@ -162,6 +217,12 @@ export default function Console() {
             {mode === "describe" && !form.age_band && <div className="note"><span className="dot"></span><span>Age band is required before generating.</span></div>}
             {mode === "reference" && !refFile && <div className="note"><span className="dot"></span><span>Choose a reference image before generating.</span></div>}
             {genError && <div className="alert warn"><b>Generation failed.</b> {genError}</div>}
+            {resumed && candidates.length > 0 && (
+              <div className="alert warn" style={{ alignItems: "center" }}>
+                <span style={{ flex: 1 }}>Resumed your last unsaved shoot{sheetTs ? ` from ${timeAgo(sheetTs)}` : ""}. Pick your frames and save, or discard to start fresh.</span>
+                <button className="btn ghost" onClick={discardSheet}>Discard</button>
+              </div>
+            )}
             {candidates.length > 0 ? (
               <CandidateGrid candidates={candidates} picked={picked} onPick={(a, f) => setPicked({ ...picked, [a]: f })} />
             ) : (
