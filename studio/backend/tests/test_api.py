@@ -5,6 +5,19 @@ from app.main import app
 client = TestClient(app)
 
 
+def _wait_job(job_id, timeout=5.0):
+    # Generation now runs on a background thread, so the POST returns before the
+    # job finishes. Poll the same way the real frontend does.
+    import time
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        body = client.get(f"/jobs/{job_id}").json()
+        if body["status"] != "running":
+            return body
+        time.sleep(0.02)
+    raise AssertionError(f"job {job_id} did not finish within {timeout}s")
+
+
 @pytest.fixture(autouse=True)
 def _no_ollama_enrich(monkeypatch):
     # Enrichment calls the local LLM; keep the API tests hermetic by making it a
@@ -54,9 +67,7 @@ def test_generate_describe_and_poll_job(monkeypatch):
     assert resp.status_code == 200
     job_id = resp.json()["job_id"]
 
-    status_resp = client.get(f"/jobs/{job_id}")
-    assert status_resp.status_code == 200
-    body = status_resp.json()
+    body = _wait_job(job_id)
     assert body["status"] == "done"
     assert len(body["candidates"]) == 4  # one per angle
     assert {c["angle"] for c in body["candidates"]} == {"front", "34", "profile", "body"}
@@ -88,6 +99,25 @@ def test_upload_reference_rejects_non_image(monkeypatch, tmp_path):
 def test_jobs_unknown_id_returns_404():
     resp = client.get("/jobs/does-not-exist")
     assert resp.status_code == 404
+
+
+def test_generation_rejected_while_another_running():
+    # Only one generation may run at a time (single ComfyUI / GPU). With the lock
+    # already held, a new job is rejected via its error status instead of racing.
+    from app import main
+    from app.schema import GenerateRequest
+
+    assert main._generation_lock.acquire(blocking=False)
+    try:
+        job_id = main.job_store.create()
+        main._run_generate_job(
+            job_id, GenerateRequest(mode="describe", identity_string="x", seed=1, count=1)
+        )
+        body = main.job_store.get(job_id)
+        assert body.status == "error"
+        assert "already running" in body.error
+    finally:
+        main._generation_lock.release()
 
 
 def test_generate_restores_vram_even_when_comfy_job_errors(monkeypatch):
@@ -124,9 +154,7 @@ def test_generate_restores_vram_even_when_comfy_job_errors(monkeypatch):
     assert resp.status_code == 200
     job_id = resp.json()["job_id"]
 
-    status_resp = client.get(f"/jobs/{job_id}")
-    assert status_resp.status_code == 200
-    body = status_resp.json()
+    body = _wait_job(job_id)
     assert body["status"] == "error"
     assert restore_calls == [True]
 
@@ -145,7 +173,7 @@ def test_get_models_and_get_one(tmp_path, monkeypatch):
 
     monkeypatch.setattr(main, "MODELS_ROOT", tmp_path)
     card = Card(
-        slug="jess", name="Jess", gender="female", status="card",
+        slug="kiana", name="Kiana", gender="female", status="card",
         identity_string="s", seed=48120, attributes=Attributes(age_band="late 20s"),
         reference_images=["reference/front.png"], provenance="synthetic",
         release=None, created="2026-07-21",
@@ -155,9 +183,9 @@ def test_get_models_and_get_one(tmp_path, monkeypatch):
     list_resp = client.get("/models")
     assert list_resp.status_code == 200
     assert len(list_resp.json()) == 1
-    assert list_resp.json()[0]["slug"] == "jess"
+    assert list_resp.json()[0]["slug"] == "kiana"
 
-    get_resp = client.get("/models/jess")
+    get_resp = client.get("/models/kiana")
     assert get_resp.status_code == 200
     assert get_resp.json()["seed"] == 48120
 
@@ -171,7 +199,7 @@ def test_generate_sheet_uses_card_identity_and_seed(tmp_path, monkeypatch):
 
     monkeypatch.setattr(main, "MODELS_ROOT", tmp_path)
     card = Card(
-        slug="jess", name="Jess", gender="female", status="card",
+        slug="kiana", name="Kiana", gender="female", status="card",
         identity_string="a synthetic woman, late 20s", seed=48120,
         attributes=Attributes(age_band="late 20s"), reference_images=[],
         provenance="synthetic", release=None, created="2026-07-21",
@@ -194,10 +222,10 @@ def test_generate_sheet_uses_card_identity_and_seed(tmp_path, monkeypatch):
     monkeypatch.setattr(main.comfy, "submit", fake_submit)
     monkeypatch.setattr(main.comfy, "poll_history", fake_poll_history)
 
-    resp = client.post("/generate-sheet", json={"slug": "jess"})
+    resp = client.post("/generate-sheet", json={"slug": "kiana"})
     assert resp.status_code == 200
     job_id = resp.json()["job_id"]
-    status = client.get(f"/jobs/{job_id}").json()
+    status = _wait_job(job_id)
     assert status["status"] == "done"
 
 
@@ -240,11 +268,11 @@ def test_post_models_saves_and_commits(tmp_path, monkeypatch):
     monkeypatch.setattr(main, "_candidate_source_dir", fake_source_dir_for)
 
     def fake_commit_and_push(repo_root, add_path, message, **kwargs):
-        return "abc1234"
+        return "abc1234", None
     monkeypatch.setattr(main.git_ops, "commit_and_push", fake_commit_and_push)
 
     resp = client.post("/models", json={
-        "slug": "jess", "name": "Jess", "gender": "female",
+        "slug": "kiana", "name": "Kiana", "gender": "female",
         "identity_string": "a synthetic woman, late 20s", "seed": 48120,
         "attributes": {"age_band": "late 20s"},
         "provenance": "synthetic", "release": None,
@@ -255,8 +283,8 @@ def test_post_models_saves_and_commits(tmp_path, monkeypatch):
     body = resp.json()
     assert body["ok"] is True
     assert body["commit"] == "abc1234"
-    assert (tmp_path / "jess" / "card.json").exists()
-    assert (tmp_path / "jess" / "reference" / "front.png").exists()
+    assert (tmp_path / "kiana" / "card.json").exists()
+    assert (tmp_path / "kiana" / "reference" / "front.png").exists()
 
 
 def test_post_models_rolls_back_partial_write_on_bad_picked(tmp_path, monkeypatch):
@@ -278,7 +306,7 @@ def test_post_models_rolls_back_partial_write_on_bad_picked(tmp_path, monkeypatc
     monkeypatch.setattr(main.git_ops, "commit_and_push", fail_commit)
 
     resp = client.post("/models", json={
-        "slug": "jess", "name": "Jess", "gender": "female",
+        "slug": "kiana", "name": "Kiana", "gender": "female",
         "identity_string": "a synthetic woman, late 20s", "seed": 48120,
         "attributes": {"age_band": "late 20s"},
         "provenance": "synthetic", "release": None,
@@ -290,7 +318,7 @@ def test_post_models_rolls_back_partial_write_on_bad_picked(tmp_path, monkeypatc
     assert body["ok"] is False
     assert body["reason"]
     # A failed save must leave zero trace: no partial models/<slug>/ folder.
-    assert not (tmp_path / "jess").exists()
+    assert not (tmp_path / "kiana").exists()
 
 
 def test_generate_restores_vram_on_unexpected_exception(monkeypatch):
@@ -326,9 +354,7 @@ def test_generate_restores_vram_on_unexpected_exception(monkeypatch):
     assert resp.status_code == 200
     job_id = resp.json()["job_id"]
 
-    status_resp = client.get(f"/jobs/{job_id}")
-    assert status_resp.status_code == 200
-    body = status_resp.json()
+    body = _wait_job(job_id)
     assert body["status"] == "error"
     assert restore_calls == [True]
 
@@ -345,20 +371,26 @@ def test_cors_allows_dev_origin():
     assert resp.headers.get("access-control-allow-origin") == "http://localhost:5173"
 
 
-def test_serves_existing_reference_image():
-    resp = client.get("/models/jess/reference/front.png")
+def test_serves_existing_reference_image(tmp_path, monkeypatch):
+    from app import main
+    monkeypatch.setattr(main, "MODELS_ROOT", tmp_path)
+    ref = tmp_path / "kiana" / "reference"
+    ref.mkdir(parents=True)
+    (ref / "front.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 2000)
+
+    resp = client.get("/models/kiana/reference/front.png")
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "image/png"
     assert len(resp.content) > 1000
 
 
 def test_missing_reference_image_404():
-    resp = client.get("/models/jess/reference/does-not-exist.png")
+    resp = client.get("/models/kiana/reference/does-not-exist.png")
     assert resp.status_code == 404
 
 
 def test_reference_image_rejects_traversal():
-    resp = client.get("/models/jess/reference/..%2f..%2fcard.json")
+    resp = client.get("/models/kiana/reference/..%2f..%2fcard.json")
     assert resp.status_code == 404
 
 
@@ -368,7 +400,7 @@ def test_reference_image_dotdot_filename_exercises_guard():
     # used to prove the guard runs. Percent-encoding the dots (%2e%2e) survives
     # client-side normalization and is decoded back to ".." by the time it
     # reaches the route, so it actually exercises the handler's guard.
-    resp = client.get("/models/jess/reference/%2e%2e")
+    resp = client.get("/models/kiana/reference/%2e%2e")
     assert resp.status_code == 404
     assert resp.json()["detail"] == "reference image not found"
 
@@ -376,3 +408,113 @@ def test_reference_image_dotdot_filename_exercises_guard():
 def test_reference_image_rejects_traversal_slug():
     resp = client.get("/models/..%2freference/front.png")
     assert resp.status_code == 404
+
+
+def test_comfy_image_proxies_bytes(monkeypatch):
+    from app import main
+
+    def fake_fetch(filename, subfolder, folder_type):
+        assert filename == "sheet_front_0.png"
+        assert folder_type == "output"
+        return b"\x89PNG\r\nDATA", "image/png"
+    monkeypatch.setattr(main.comfy, "fetch_output_image", fake_fetch)
+
+    resp = client.get("/comfy-image?filename=sheet_front_0.png")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "image/png"
+    assert resp.content == b"\x89PNG\r\nDATA"
+
+
+def test_comfy_image_rejects_bad_filename():
+    resp = client.get("/comfy-image?filename=..%2f..%2fetc")
+    assert resp.status_code == 404
+
+
+def test_comfy_image_upstream_failure_502(monkeypatch):
+    from app import main
+
+    def boom(*a, **k):
+        raise RuntimeError("connection refused")
+    monkeypatch.setattr(main.comfy, "fetch_output_image", boom)
+
+    resp = client.get("/comfy-image?filename=x.png")
+    assert resp.status_code == 502
+
+
+def test_delete_model_removes_folder(tmp_path, monkeypatch):
+    from app import main
+    monkeypatch.setattr(main, "MODELS_ROOT", tmp_path)
+    d = tmp_path / "kiana" / "reference"
+    d.mkdir(parents=True)
+    (tmp_path / "kiana" / "card.json").write_text("{}")
+    (d / "front.png").write_bytes(b"x")
+
+    resp = client.delete("/models/kiana")
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+    assert not (tmp_path / "kiana").exists()
+
+
+def test_delete_missing_model_404(tmp_path, monkeypatch):
+    from app import main
+    monkeypatch.setattr(main, "MODELS_ROOT", tmp_path)
+    resp = client.delete("/models/ghost")
+    assert resp.status_code == 404
+
+
+def test_delete_rejects_traversal_slug(tmp_path, monkeypatch):
+    from app import main
+    monkeypatch.setattr(main, "MODELS_ROOT", tmp_path)
+    # Percent-encoded traversal survives client normalization and reaches the
+    # handler, which must reject it without touching anything outside the root.
+    resp = client.delete("/models/..%2f..%2fmodels")
+    assert resp.status_code == 404
+    assert tmp_path.exists()
+
+
+def test_dataset_endpoint_runs_job_and_returns_candidates(monkeypatch, tmp_path):
+    from app import main, models_store
+    from app.schema import Attributes, Card
+
+    # A saved card on disk with one reference frame.
+    card = Card(
+        slug="cecil", name="Cecil", gender="Female", status="card",
+        identity_string="a Filipino woman, mid 40s", seed=123,
+        attributes=Attributes(age_band="mid 40s"),
+        reference_images=["reference/front.png"], provenance="synthetic",
+        created="2026-07-22",
+    )
+    monkeypatch.setattr(main.models_store, "read_card", lambda root, slug: card)
+    # Reference frame source file exists so the copy-into-input step succeeds.
+    ref_src = tmp_path / "cecil" / "reference"
+    ref_src.mkdir(parents=True)
+    (ref_src / "front.png").write_bytes(b"png")
+    monkeypatch.setattr(main, "MODELS_ROOT", tmp_path)
+    monkeypatch.setattr(main, "COMFYUI_INPUT_DIR", tmp_path / "input")
+
+    monkeypatch.setattr(main.vram, "free_vram", lambda: None)
+    monkeypatch.setattr(main.vram, "restore_model", lambda: None)
+    monkeypatch.setattr(main.comfy, "submit", lambda graph: "pid")
+
+    def fake_poll(prompt_id, **kw):
+        return {"status": {"status_str": "success"},
+                "outputs": {"11": {"images": [
+                    {"filename": "sheet_ref_front_0.png", "subfolder": "job"}]}}}
+    monkeypatch.setattr(main.comfy, "poll_history", fake_poll)
+
+    from fastapi.testclient import TestClient
+    client = TestClient(main.app)
+    r = client.post("/models/cecil/dataset", json={"count": 4})
+    assert r.status_code == 200
+    job_id = r.json()["job_id"]
+
+    # Job runs on a background thread; poll to completion.
+    import time
+    for _ in range(50):
+        job = client.get(f"/jobs/{job_id}").json()
+        if job["status"] != "running":
+            break
+        time.sleep(0.02)
+    assert job["status"] == "done"
+    assert len(job["candidates"]) == 4
+    assert job["candidates"][0]["filename"] == "sheet_ref_front_0.png"
