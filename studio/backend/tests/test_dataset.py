@@ -20,3 +20,16 @@ def test_variants_carry_lighting_and_distance_in_extra():
     assert all(v0.extra.strip() for v0 in v)
     joined = " ".join(x.extra for x in v)
     assert "lighting" in joined
+
+
+def test_build_dataset_graphs_one_per_variant_anchored_on_ref():
+    graphs = dataset.build_dataset_graphs(
+        ref_image="ref_abc.png", identity_string="a Filipino woman, mid 40s",
+        base_seed=500, count=8,
+    )
+    assert len(graphs) == 8
+    for variant, graph in graphs:
+        assert graph["2"]["inputs"]["image"] == "ref_abc.png"   # anchored
+        assert graph["7"]["inputs"]["batch_size"] == 1          # one image each
+        assert graph["8"]["inputs"]["seed"] == variant.seed     # variant seed
+        assert variant.extra in graph["5"]["inputs"]["prompt"]  # modifier applied

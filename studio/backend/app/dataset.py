@@ -47,3 +47,20 @@ def dataset_variants(base_seed: int, count: int = 40) -> list[DatasetVariant]:
         ))
 
     return variants
+
+
+from app import workflows
+
+
+def build_dataset_graphs(
+    ref_image: str, identity_string: str | None, base_seed: int, count: int = 40,
+) -> list[tuple[DatasetVariant, dict]]:
+    """One reference graph per variant, anchored on ref_image, batch of 1."""
+    out: list[tuple[DatasetVariant, dict]] = []
+    for variant in dataset_variants(base_seed, count):
+        graph = workflows.build_reference_graph(
+            ref_image_path=ref_image, angle=variant.angle, seed=variant.seed,
+            count=1, identity_string=identity_string, extra=variant.extra,
+        )
+        out.append((variant, graph))
+    return out
